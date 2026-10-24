@@ -1,0 +1,62 @@
+# Builds the iPhone app on a free GitHub cloud Mac and saves HeyHelper.ipa for Sideloadly.
+name: Build iPhone app
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  LLAMA_CPP_VERSION: b11600
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Download llama.cpp (runs the brain on the phone)
+        run: |
+          curl -L --fail --retry 3 -o llama.zip \
+            "https://github.com/ggml-org/llama.cpp/releases/download/${LLAMA_CPP_VERSION}/llama-${LLAMA_CPP_VERSION}-xcframework.zip"
+          unzip -q llama.zip -d llama
+          mkdir -p Frameworks
+          mv llama/build-apple/llama.xcframework Frameworks/
+
+      - name: Create Xcode project
+        run: xcodegen generate
+
+      - name: Build app
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project HeyHelper.xcodeproj \
+            -scheme HeyHelper \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            build 2>&1 | tee build.log | grep -E "error:|warning: unre|BUILD (SUCCEEDED|FAILED)" || true
+          test -d build/Build/Products/Release-iphoneos/HeyHelper.app
+
+      - name: Show build errors
+        if: failure()
+        run: grep -E "error:" build.log | sort -u | head -n 60 || true
+
+      - name: Package HeyHelper.ipa
+        run: |
+          mkdir -p Payload
+          cp -R build/Build/Products/Release-iphoneos/HeyHelper.app Payload/
+          zip -qry HeyHelper.ipa Payload
+          ls -lh HeyHelper.ipa
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: HeyHelper-ipa
+          path: HeyHelper.ipa
+          retention-days: 30

@@ -1,0 +1,10 @@
+build/
+Frameworks/
+*.xcodeproj/
+Support/*.plist
+*.ipa
+Payload/
+llama/
+llama.zip
+__pycache__/
+.DS_Store
