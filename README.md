@@ -2,7 +2,7 @@
 
 Say **"Hey Helper"**, and Pip, a small floating companion, wakes up on your screen or lock screen, listens, thinks, and answers out loud. It can also open apps, call or text people, set timers and reminders, turn the flashlight on and off, and control your music.
 
-- **No AI service and no internet.** The brain is an open-source model (Llama 3.2 1B) that runs on your iPhone.
+- **No AI service.** The brain is an open-source model (Llama 3.2 1B) that runs on your iPhone.
 - **Nothing is scripted.** The model writes every reply itself, and it works out what you meant even if speech recognition gets your words a bit wrong.
 - **Smarter with lookups (optional):** when it isn't sure, it looks things up on free public sources (Wikipedia, DuckDuckGo, Open-Meteo weather) and saves what it learns so it can answer offline later. You can turn this off in Settings.
 - **Remembers you:** say "remember my favorite food is tacos" and it keeps that. You can see and delete memories in Settings.
