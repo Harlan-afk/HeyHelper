@@ -11,6 +11,8 @@ struct ChatMessage: Identifiable, Equatable {
     var text: String
     /// Exactly what the brain wrote, including [commands], so it stays consistent next turn.
     var raw: String
+    /// Things Helper added after trying a command (like "I couldn't find that song").
+    var notes = ""
 }
 
 /// Connects everything: ears -> brain -> voice and hands, plus Pip on the lock screen.
@@ -40,6 +42,7 @@ final class AppModel: ObservableObject {
     private let speaker = Speaker()
     private let hands = PhoneActions()
     private let lockScreen = LockScreenCompanion()
+    private let knowledge = Knowledge()
 
     private var replyTask: Task<Void, Never>?
     private var turn = 0
@@ -183,21 +186,42 @@ final class AppModel: ObservableObject {
         replyTask = Task { await self.reply(to: prompt, turn: thisTurn) }
     }
 
-    private func reply(to prompt: [LlamaBrain.Message], turn thisTurn: Int) async {
-        var parser = ReplyParser()
+    private func reply(to firstPrompt: [LlamaBrain.Message], turn thisTurn: Int) async {
+        var prompt = firstPrompt
         var messageIndex: Int?
+        var earlierText = ""
+        var earlierRaw = ""
+        var rounds = 0
         do {
-            let stream = brain.generate(prompt, pinned: PromptBuilder.pinnedCount, maxTokens: settings.replyLength.maxTokens)
-            for try await piece in stream {
+            // Round 1 answers or asks to look something up; round 2 answers with what was found.
+            while true {
+                var parser = ReplyParser()
+                var research: [PhoneAction] = []
+                let stream = brain.generate(prompt, pinned: PromptBuilder.pinnedCount(settings: settings),
+                                            maxTokens: settings.replyLength.maxTokens)
+                for try await piece in stream {
+                    guard thisTurn == turn else { return }
+                    let output = parser.feed(piece)
+                    show(parser, after: earlierText, earlierRaw, at: &messageIndex)
+                    research += await act(on: output, turn: thisTurn, messageIndex: messageIndex)
+                }
                 guard thisTurn == turn else { return }
-                let output = parser.feed(piece)
-                show(parser, at: &messageIndex)
-                await act(on: output, turn: thisTurn, messageIndex: messageIndex)
+                let output = parser.finish()
+                show(parser, after: earlierText, earlierRaw, at: &messageIndex)
+                research += await act(on: output, turn: thisTurn, messageIndex: messageIndex)
+
+                guard let question = research.first, rounds < 2 else { break }
+                rounds += 1
+                let found = await investigate(question)
+                guard thisTurn == turn else { return }
+                prompt.append(.init(role: "assistant", content: parser.raw))
+                prompt.append(found)
+                if let index = messageIndex, messages.indices.contains(index) {
+                    earlierText = messages[index].text
+                    earlierRaw = messages[index].raw
+                    messages[index].notes = ""
+                }
             }
-            guard thisTurn == turn else { return }
-            let output = parser.finish()
-            show(parser, at: &messageIndex)
-            await act(on: output, turn: thisTurn, messageIndex: messageIndex)
         } catch {
             guard thisTurn == turn else { return }
             speaker.speak("Sorry, my brain glitched. Can you say that again?")
@@ -208,13 +232,28 @@ final class AppModel: ObservableObject {
         finishTurnIfDone()
     }
 
-    private func show(_ parser: ReplyParser, at index: inout Int?) {
-        let text = parser.visible.trimmingCharacters(in: .whitespacesAndNewlines)
-        let raw = parser.raw.trimmingCharacters(in: .whitespacesAndNewlines)
+    /// Fetches what the brain asked for and hands it back as a message it can read.
+    private func investigate(_ action: PhoneAction) async -> LlamaBrain.Message {
+        let online = settings.internetEnabled
+        switch action {
+        case .weather(let place):
+            return PromptBuilder.findings(await knowledge.weather(place, online: online), about: "the weather in \(place)")
+        case .lookup(let topic):
+            return PromptBuilder.findings(await knowledge.lookup(topic, online: online), about: topic)
+        default:
+            return PromptBuilder.findings(nil, about: "that")
+        }
+    }
+
+    private func show(_ parser: ReplyParser, after earlierText: String, _ earlierRaw: String, at index: inout Int?) {
+        let visible = parser.visible.trimmingCharacters(in: .whitespacesAndNewlines)
+        let text = [earlierText, visible].filter { !$0.isEmpty }.joined(separator: " ")
+        let raw = [earlierRaw, parser.raw.trimmingCharacters(in: .whitespacesAndNewlines)].filter { !$0.isEmpty }.joined(separator: " ")
         guard !raw.isEmpty else { return }
         currentReply = text
         if let existing = index, messages.indices.contains(existing) {
-            messages[existing].text = text
+            let notes = messages[existing].notes
+            messages[existing].text = [text, notes].filter { !$0.isEmpty }.joined(separator: " ")
             messages[existing].raw = raw
         } else {
             messages.append(ChatMessage(role: .helper, text: text, raw: raw))
@@ -222,20 +261,32 @@ final class AppModel: ObservableObject {
         }
     }
 
-    private func act(on output: ReplyParser.Output, turn thisTurn: Int, messageIndex: Int?) async {
+    /// Speaks finished sentences and carries out phone commands. Returns lookups for the brain to do.
+    private func act(on output: ReplyParser.Output, turn thisTurn: Int, messageIndex: Int?) async -> [PhoneAction] {
         for sentence in output.sentences {
             speaker.speak(sentence)
             if phase == .speaking { refreshLockScreen() } else { phase = .speaking }
         }
+        var research: [PhoneAction] = []
         for action in output.actions {
+            if action.isResearch {
+                research.append(action)
+                continue
+            }
+            if case .remember(let fact) = action {
+                settings.remember(fact)
+                continue
+            }
             guard let note = await hands.perform(action), thisTurn == turn else { continue }
             speaker.speak(note)
             if let index = messageIndex, messages.indices.contains(index) {
-                messages[index].text = (messages[index].text + " " + note).trimmingCharacters(in: .whitespaces)
+                messages[index].notes = [messages[index].notes, note].filter { !$0.isEmpty }.joined(separator: " ")
+                messages[index].text = [messages[index].text, note].filter { !$0.isEmpty }.joined(separator: " ")
                 currentReply = messages[index].text
             }
             if phase == .speaking { refreshLockScreen() } else { phase = .speaking }
         }
+        return research
     }
 
     private func finishTurnIfDone() {
@@ -287,6 +338,13 @@ final class AppModel: ObservableObject {
         stopReply()
         messages.removeAll()
         if isReady { resumeListening() }
+    }
+
+    var learnedCount: Int { knowledge.learnedCount }
+
+    func forgetLearned() {
+        knowledge.forgetLearned()
+        objectWillChange.send()
     }
 
     func testVoice() {

@@ -14,6 +14,7 @@ struct SettingsView: View {
         NavigationStack {
             Form {
                 personalitySection
+                smartsSection
                 voiceSection
                 listeningSection
                 appsSection
@@ -30,6 +31,8 @@ struct SettingsView: View {
         }
         .onChange(of: settings.personality) { _, _ in model.personalityChanged() }
         .onChange(of: settings.replyLength) { _, _ in model.personalityChanged() }
+        .onChange(of: settings.internetEnabled) { _, _ in model.personalityChanged() }
+        .onChange(of: settings.memories) { _, _ in model.personalityChanged() }
         .onChange(of: settings.listenEnabled) { _, _ in model.listeningSettingChanged() }
         .onChange(of: settings.lockScreenCompanion) { _, _ in model.lockScreenSettingChanged() }
     }
@@ -52,6 +55,30 @@ struct SettingsView: View {
             Text("Personality")
         } footer: {
             Text("Custom example: “You talk like a pirate and call me captain.”")
+        }
+    }
+
+    private var smartsSection: some View {
+        Section {
+            Toggle("Look things up online", isOn: $settings.internetEnabled)
+            Picker("Play songs with", selection: $settings.musicApp) {
+                ForEach(MusicApp.allCases) { Text($0.title).tag($0) }
+            }
+            if settings.memories.isEmpty {
+                Text("Nothing remembered yet. Try “remember my favorite food is tacos”.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(settings.memories, id: \.self) { Text($0) }
+                    .onDelete { settings.memories.remove(atOffsets: $0) }
+            }
+            LabeledContent("Facts learned online", value: "\(model.learnedCount)")
+            Button("Forget learned facts", role: .destructive) { model.forgetLearned() }
+                .disabled(model.learnedCount == 0)
+        } header: {
+            Text("Smarts & memory")
+        } footer: {
+            Text("Online lookups use free public sources (Wikipedia, DuckDuckGo, Open-Meteo weather, Apple's song search), not an AI service. Everything I learn is saved on this iPhone, so I can answer again offline. Swipe a memory left to delete it.")
         }
     }
 
@@ -140,7 +167,7 @@ struct SettingsView: View {
     private var aboutSection: some View {
         Section("About") {
             LabeledContent("Brain", value: "Llama 3.2 1B (on this phone)")
-            LabeledContent("Internet", value: "Not used")
+            LabeledContent("Internet", value: settings.internetEnabled ? "Lookups only" : "Not used")
             LabeledContent("Speech", value: "On-device")
         }
     }

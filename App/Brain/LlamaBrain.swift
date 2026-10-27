@@ -33,7 +33,7 @@ final class LlamaBrain: @unchecked Sendable {
     /// Tokens currently held in the model's memory, so repeated prompt prefixes are not re-read.
     private var cachedTokens: [llama_token] = []
 
-    private let contextSize: Int32 = 2048
+    private let contextSize: Int32 = 3072
     private let batchSize: Int32 = 512
 
     private let jobLock = NSLock()

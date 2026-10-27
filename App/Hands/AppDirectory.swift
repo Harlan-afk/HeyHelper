@@ -35,6 +35,10 @@ enum AppDirectory {
         // Popular apps
         Entry(name: "Amazon", aliases: ["amazon shopping"], link: "com.amazon.mobile.shopping://"),
         Entry(name: "Cash App", aliases: ["cashapp", "cash"], link: "squarecash://"),
+        Entry(name: "Brawl Stars", aliases: ["brawl star", "brawlstars"], link: "brawlstars://"),
+        Entry(name: "Clash of Clans", aliases: ["clash of clan", "coc"], link: "clashofclans://"),
+        Entry(name: "Clash Royale", aliases: ["clash royal", "clash royals", "clash"], link: "clashroyale://"),
+        Entry(name: "Pokémon GO", aliases: ["pokemon go", "pokemon"], link: "pokemongo://"),
         Entry(name: "ChatGPT", aliases: ["chat gpt"], link: "chatgpt://"),
         Entry(name: "Chrome", aliases: ["google chrome"], link: "googlechrome://"),
         Entry(name: "Discord", aliases: ["discord app"], link: "discord://"),

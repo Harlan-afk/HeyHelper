@@ -12,6 +12,18 @@ enum PhoneAction: Equatable {
     case maps(String)
     case shortcut(String)
     case search(String)
+    case play(song: String, artist: String)
+    case lookup(String)
+    case weather(String)
+    case remember(String)
+
+    /// Commands that fetch information for the brain instead of doing something on the phone.
+    var isResearch: Bool {
+        switch self {
+        case .lookup, .weather: return true
+        default: return false
+        }
+    }
 
     /// Parses the inside of a bracket, e.g. `timer: 300 | Pizza`. Forgiving about spacing and case.
     static func parse(_ inside: String) -> PhoneAction? {
@@ -39,8 +51,18 @@ enum PhoneAction: Equatable {
         case "flashlight", "torch", "light":
             let value = first.lowercased()
             return .flashlight(on: !(value.contains("off") || value.contains("false")))
-        case "music", "song", "media":
+        case "music", "media":
             return .music(first.lowercased())
+        case "play", "song", "play song":
+            let lower = first.lowercased()
+            if ["play", "pause", "stop", "next", "skip", "previous", "back", "music"].contains(lower) { return .music(lower) }
+            return .play(song: first, artist: second)
+        case "lookup", "look up", "find":
+            return .lookup(first)
+        case "weather", "forecast":
+            return .weather(first)
+        case "remember", "memory", "note":
+            return .remember(first)
         case "maps", "map", "directions", "navigate":
             return .maps(first)
         case "shortcut", "run shortcut":

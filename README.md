@@ -4,6 +4,9 @@ Say **"Hey Helper"**, and Pip, a small floating companion, wakes up on your scre
 
 - **No AI service and no internet.** The brain is an open-source model (Llama 3.2 1B) that runs on your iPhone.
 - **Nothing is scripted.** The model writes every reply itself, and it works out what you meant even if speech recognition gets your words a bit wrong.
+- **Smarter with lookups (optional):** when it isn't sure, it looks things up on free public sources (Wikipedia, DuckDuckGo, Open-Meteo weather) and saves what it learns so it can answer offline later. You can turn this off in Settings.
+- **Remembers you:** say "remember my favorite food is tacos" and it keeps that. You can see and delete memories in Settings.
+- **Plays the exact song you ask for** from your library or Apple Music (or searches Spotify), and plays voice games like trivia, riddles and 20 questions. It can open games like Clash Royale and coach you, but iOS doesn't let any app tap inside other games.
 - Speech recognition runs on the phone too. Your voice never leaves it.
 
 ## How it works

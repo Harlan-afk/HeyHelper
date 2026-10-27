@@ -77,6 +77,19 @@ enum WakeSensitivity: String, CaseIterable, Identifiable {
     }
 }
 
+enum MusicApp: String, CaseIterable, Identifiable {
+    case appleMusic, spotify
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .appleMusic: return "Apple Music"
+        case .spotify: return "Spotify"
+        }
+    }
+}
+
 /// An app the user taught Helper to open: a link like `camera://` or the name of a Shortcut.
 struct CustomApp: Codable, Identifiable, Hashable {
     var id = UUID()
@@ -107,6 +120,10 @@ final class HelperSettings: ObservableObject {
     @Published var wakeSensitivity: WakeSensitivity { didSet { save(wakeSensitivity.rawValue, "wakeSensitivity") } }
     @Published var followUp: Bool { didSet { save(followUp, "followUp") } }
     @Published var lockScreenCompanion: Bool { didSet { save(lockScreenCompanion, "lockScreenCompanion") } }
+    @Published var internetEnabled: Bool { didSet { save(internetEnabled, "internetEnabled") } }
+    @Published var musicApp: MusicApp { didSet { save(musicApp.rawValue, "musicApp") } }
+    /// Facts the user asked Helper to remember. Shown in Settings, where they can be deleted.
+    @Published var memories: [String] { didSet { save(memories, "memories") } }
     @Published var customApps: [CustomApp] {
         didSet { save((try? JSONEncoder().encode(customApps)) ?? Data(), "customApps") }
     }
@@ -124,11 +141,21 @@ final class HelperSettings: ObservableObject {
         wakeSensitivity = WakeSensitivity(rawValue: d.string(forKey: "wakeSensitivity") ?? "") ?? .normal
         followUp = d.object(forKey: "followUp") as? Bool ?? true
         lockScreenCompanion = d.object(forKey: "lockScreenCompanion") as? Bool ?? true
+        internetEnabled = d.object(forKey: "internetEnabled") as? Bool ?? true
+        musicApp = MusicApp(rawValue: d.string(forKey: "musicApp") ?? "") ?? .appleMusic
+        memories = d.stringArray(forKey: "memories") ?? []
         customApps = d.data(forKey: "customApps").flatMap { try? JSONDecoder().decode([CustomApp].self, from: $0) } ?? []
     }
 
     private func save(_ value: Any, _ key: String) {
         Self.defaults.set(value, forKey: key)
+    }
+
+    func remember(_ fact: String) {
+        let clean = fact.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !clean.isEmpty, !memories.contains(where: { $0.caseInsensitiveCompare(clean) == .orderedSame }) else { return }
+        memories.append(clean)
+        if memories.count > 40 { memories.removeFirst(memories.count - 40) }
     }
 
     var personalityDescription: String {
